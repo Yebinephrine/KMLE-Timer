@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="국시타이머">
+  <meta name="apple-mobile-web-app-title" content="국시 타이머">
   <title>의사국가고시 실기시험 타이머</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
@@ -27,7 +27,7 @@
     --c-coral: #993C1D;
     --c-coral-light: #FAECE7;
     --c-purple: #43579C;
-    --c-purple-light: #EDE7F6;
+    --c-purple-light: #E8EAF6;
 
     --color-bg: #F7F6F2;
     --color-surface: #FFFFFF;
@@ -360,6 +360,11 @@
         <input type="checkbox" id="alert-toggle" checked>
         <span class="toggle-slider"></span>
       </label>
+      <label for="beep-toggle" style="margin-left:8px">종료</label>
+      <label class="toggle">
+        <input type="checkbox" id="beep-toggle" checked>
+        <span class="toggle-slider"></span>
+      </label>
     </div>
   </div>
 
@@ -391,7 +396,7 @@
 const COLOR_PALETTE = [
   { bg: '#E6F1FB', text: '#185FA5', label: '파랑' },
   { bg: '#E1F5EE', text: '#0F6E56', label: '청록' },
-  { bg: '#EDE7F6', text: '#5B2D8E', label: '보라' },
+  { bg: '#EDE7F6', text: '#43579C', label: '보라' },
   { bg: '#FAECE7', text: '#993C1D', label: '코랄' },
   { bg: '#FEF3C7', text: '#92400E', label: '노랑' },
   { bg: '#FCE7F3', text: '#9D174D', label: '핑크' },
@@ -554,6 +559,27 @@ function speak(text) {
   window.speechSynthesis.speak(utter);
 }
 
+function beep() {
+  if (!document.getElementById('beep-toggle')?.checked) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const times = [0, 0.3, 0.6];
+    times.forEach(t => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, ctx.currentTime + t);
+      gain.gain.setValueAtTime(0.6, ctx.currentTime + t);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.25);
+      osc.start(ctx.currentTime + t);
+      osc.stop(ctx.currentTime + t + 0.25);
+    });
+  } catch(e) {}
+}
+
+
 function startCountdown(cIdx) {
   const cd = getCaseCD(cIdx);
   if (!cd.timeLimit || cd.interval) return;
@@ -575,7 +601,10 @@ function startCountdown(cIdx) {
       const alertOn = document.getElementById('alert-toggle')?.checked;
       if (alertOn) speak('2분 남았습니다');
     }
-    if (remaining === 0) { clearInterval(cd.interval); cd.interval = null; cd.running = false; }
+    if (remaining === 0) {
+      clearInterval(cd.interval); cd.interval = null; cd.running = false;
+      beep();
+    }
   }, 500);
 }
 
@@ -599,7 +628,7 @@ function startSession(cIdx, sIdx) {
   // 이 증례에서 처음 시작하는 경우 시작 알림
   if (!wasAnyRunningOrDone) {
     const startAlertOn = document.getElementById('start-alert-toggle')?.checked;
-    if (startAlertOn) speak('시험을 시작합니다');
+    if (startAlertOn) speak('시험실 입실');
   }
   t.running = true;
   t.startAt = Date.now() - t.elapsed * 1000;
@@ -626,7 +655,7 @@ function stopSession(cIdx, sIdx) {
   const anyRunning = getSessions().some((_, i) => getTimer(cIdx, i).running);
   if (!anyRunning) pauseCountdown(cIdx);
   const now = new Date();
-  state.logs.unshift({
+  state.logs.push({
     case: state.cases[cIdx].label,
     session: SESSIONS[sIdx]?.name || '',
     elapsed: t.elapsed,
